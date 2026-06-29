@@ -165,10 +165,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const safeTitle = book.title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         // Prefer author, fall back to subtitle; show nothing if neither exists
         const secondary = (book.author || book.subtitle || '').replace(/</g, '&lt;');
+        const gradient = coverGradient(book.title);
+        const coverImg = book.cover
+            ? `<img src="${book.cover}" alt="" class="cover-img"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display=''">`
+            : '';
 
         card.innerHTML = `
-            <div class="book-cover" style="background:${coverGradient(book.title)}" role="img" aria-label="Корица: ${safeTitle}">
-                <span class="book-initials" aria-hidden="true">${getInitials(book.title)}</span>
+            <div class="book-cover" style="background:${gradient}" role="img" aria-label="Корица: ${safeTitle}">
+                ${coverImg}
+                <span class="book-initials" aria-hidden="true"${book.cover ? ' style="display:none"' : ''}>${getInitials(book.title)}</span>
                 <div class="cover-progress-bar" aria-hidden="true">
                     <div class="cover-progress-fill" style="width:${pct}%"></div>
                 </div>
