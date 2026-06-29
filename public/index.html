@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARIE — Библиотека</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="reader-body">
+
+    <!-- Security Alert (shared, z-index 9999) -->
+    <div class="security-alert" id="security-alert">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Копирането на съдържание е забранено за защита на авторските права!</span>
+    </div>
+
+    <!-- Toast (shared, z-index 1000) -->
+    <div class="toast" id="toast">
+        <i class="fa-solid" id="toast-icon"></i>
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- WebGL Smoke Background (z-index 0, behind all screens) -->
+    <canvas id="smoke-canvas" aria-hidden="true"></canvas>
+
+    <!-- ============================================================
+         SCREEN 1: LIBRARY
+         ============================================================ -->
+    <div id="screen-library" class="screen">
+
+        <header class="lib-header">
+            <div class="logo-container">
+                <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="gold-grad-lib" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f5d061"/>
+                            <stop offset="50%" stop-color="#d4af37"/>
+                            <stop offset="100%" stop-color="#aa8210"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M 23 72 C 37 67 47 42 50 18 C 53 42 63 67 77 72" fill="none" stroke="url(#gold-grad-lib)" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M 37 52 C 47 59 50 56 63 52" fill="none" stroke="url(#gold-grad-lib)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="50" y1="18" x2="50" y2="76" stroke="url(#gold-grad-lib)" stroke-width="1.5" stroke-dasharray="0.5"/>
+                    <path d="M 50 37 L 55 43 L 50 49 L 45 43 Z" fill="url(#gold-grad-lib)"/>
+                </svg>
+                <span class="logo-text">ARIE</span>
+            </div>
+
+            <div class="lib-search-box">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" id="lib-search" placeholder="Търси книга или автор..." autocomplete="off" aria-label="Търси книга">
+            </div>
+        </header>
+
+        <main class="lib-main">
+
+            <!-- Loading state -->
+            <div class="lib-state" id="lib-loading">
+                <div class="lib-spinner"></div>
+                <span>Зареждане на библиотеката...</span>
+            </div>
+
+            <!-- Empty state -->
+            <div class="lib-state lib-empty" id="lib-empty">
+                <svg class="lib-empty-icon" viewBox="0 0 90 90" fill="none" aria-hidden="true">
+                    <rect x="8"  y="14" width="44" height="60" rx="3" fill="rgba(212,175,55,0.07)" stroke="rgba(212,175,55,0.25)" stroke-width="1.5"/>
+                    <rect x="18" y="10" width="44" height="60" rx="3" fill="rgba(212,175,55,0.05)" stroke="rgba(212,175,55,0.18)" stroke-width="1.5"/>
+                    <rect x="28" y="6"  width="44" height="60" rx="3" fill="rgba(212,175,55,0.03)" stroke="rgba(212,175,55,0.12)" stroke-width="1.5"/>
+                    <line x1="37" y1="28" x2="63" y2="28" stroke="rgba(212,175,55,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="37" y1="36" x2="63" y2="36" stroke="rgba(212,175,55,0.2)" stroke-width="1"   stroke-linecap="round"/>
+                    <line x1="37" y1="44" x2="55" y2="44" stroke="rgba(212,175,55,0.15)" stroke-width="1" stroke-linecap="round"/>
+                </svg>
+                <h3>Библиотеката е празна</h3>
+                <p>Все още няма добавени книги.</p>
+            </div>
+
+            <!-- Recently opened -->
+            <section class="lib-section" id="section-recent">
+                <h2 class="lib-section-title">
+                    <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+                    Последно отворени
+                </h2>
+                <div class="book-grid" id="grid-recent"></div>
+            </section>
+
+            <!-- All books -->
+            <section class="lib-section" id="section-all">
+                <h2 class="lib-section-title">
+                    <i class="fa-solid fa-book-open" aria-hidden="true"></i>
+                    Всички книги
+                </h2>
+                <div class="book-grid" id="grid-all"></div>
+                <p class="lib-no-results" id="lib-no-results">Няма намерени книги.</p>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ============================================================
+         SCREEN 2: READER
+         ============================================================ -->
+    <div id="screen-reader" class="screen">
+
+        <header>
+            <div class="header-left">
+                <a href="#/library" class="back-btn" aria-label="Към библиотеката" title="Към библиотеката">
+                    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                </a>
+                <div class="logo-container" id="logo-home">
+                    <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#f5d061"/>
+                                <stop offset="50%" stop-color="#d4af37"/>
+                                <stop offset="100%" stop-color="#aa8210"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M 23 72 C 37 67 47 42 50 18 C 53 42 63 67 77 72" fill="none" stroke="url(#gold-grad)" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M 37 52 C 47 59 50 56 63 52" fill="none" stroke="url(#gold-grad)" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="50" y1="18" x2="50" y2="76" stroke="url(#gold-grad)" stroke-width="1.5" stroke-dasharray="0.5"/>
+                        <path d="M 50 37 L 55 43 L 50 49 L 45 43 Z" fill="url(#gold-grad)"/>
+                    </svg>
+                    <span class="logo-text" id="reader-book-title">Четец</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="select-wrapper">
+                    <i class="fa-solid fa-book-bookmark" aria-hidden="true"></i>
+                    <select id="book-select" aria-label="Избери книга">
+                        <option value="" disabled selected>Зареждане...</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <div class="reader-container" id="reader-container">
+
+            <button class="nav-arrow nav-arrow-left" id="prev-page-btn" aria-label="Предишна страница" title="Предишна страница">
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <button class="nav-arrow nav-arrow-right" id="next-page-btn" aria-label="Следваща страница" title="Следваща страница">
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
+
+            <div class="canvas-wrapper" id="canvas-wrapper">
+                <canvas id="reader-canvas"></canvas>
+            </div>
+
+            <div class="reader-footer">
+                <div class="progress-bar-container" id="progress-container" title="Кликнете за прескачане">
+                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+                <div class="controls-bar">
+                    <div class="page-indicator">
+                        Страница <span id="current-page-num">1</span> от <span id="total-pages-num">1</span>
+                    </div>
+                    <div class="tool-buttons">
+                        <button class="btn-tool" id="font-decrease-btn" aria-label="Намали шрифта" title="Намали шрифта">
+                            <i class="fa-solid fa-minus" aria-hidden="true"></i>
+                        </button>
+                        <button class="btn-tool" id="font-increase-btn" aria-label="Увеличи шрифта" title="Увеличи шрифта">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        </button>
+                        <button class="btn-tool" id="theme-toggle-btn" aria-label="Смени темата" title="Смени фона">
+                            <i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
+                        </button>
+                        <button class="btn-tool" id="fullscreen-btn" aria-label="Цял екран" title="Цял екран">
+                            <i class="fa-solid fa-expand" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="/js/smoke.js"></script>
+    <script src="/js/reader.js"></script>
+</body>
+</html>

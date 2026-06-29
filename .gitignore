@@ -1,0 +1,8 @@
+node_modules/
+.claude/
+public/js/*.bak.*
+public/css/*.bak.*
+*.bak.*
+.env
+.env.*
+uploads/1780343541579*

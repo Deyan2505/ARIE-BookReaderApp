@@ -1,0 +1,18 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json"]
+
+# Redirect API calls to the serverless function handler
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# Serve index.html (the reader) for all book reading paths (e.g. /read/book_id)
+[[redirects]]
+  from = "/read/*"
+  to = "/index.html"
+  status = 200

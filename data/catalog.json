@@ -1,0 +1,22 @@
+{
+  "books": [
+    {
+      "id": "paradoksat-na-bolkata",
+      "title": "Парадоксът на болката",
+      "subtitle": "Механика на близостта",
+      "author": "Деян Арие",
+      "seriesId": "paradoksat",
+      "seriesTitle": "Парадоксът на...",
+      "seriesOrder": 1,
+      "category": "novel",
+      "language": "bg",
+      "status": "published",
+      "description": null,
+      "cover": "/covers/paradoksat-na-bolkata.png",
+      "textFile": "uploads/1_Paradoksat-na-bolkata.txt",
+      "format": "txt",
+      "publishedAt": null,
+      "updatedAt": null
+    }
+  ]
+}
