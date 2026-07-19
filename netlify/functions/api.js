@@ -79,46 +79,77 @@ function hasLetters(str) {
     return /\p{L}/u.test(str || '');
 }
 
-// Helper to split text into pages
-function paginateText(text) {
-    const manualSeparator = /\r?\n---\r?\n|\r?\n\[PAGE\]\r?\n/g;
-    if (manualSeparator.test(text)) {
-        return text.split(manualSeparator).map(p => p.trim()).filter(p => p.length > 0);
-    }
+// ── Phase 0A: lossless logical chunking ─────────────────────────────────────
+// Splits reader-ready text into contiguous chunks with exact character offsets.
+// Invariant (enforced by tests/pagination-conservation.test.js):
+//   chunks.map(c => c.text).join('') === originalText   (byte-exact, UTF-8)
+// No normalization is performed: whitespace, blank lines, \n / \r\n line
+// endings, punctuation and Unicode are preserved. A leading BOM, if present,
+// is treated as content and preserved at offset 0.
+const CHUNK_TARGET_LENGTH = 1200;
+const CHUNK_BATCH_MAX = 64;
 
-    let pages = [];
-    const targetLength = 1200; 
+function isLowSurrogate(code) {
+    return code >= 0xDC00 && code <= 0xDFFF;
+}
+
+// Pick a friendly split position near target (paragraph > sentence > space).
+// Purely cosmetic for legacy /page rendering — every candidate keeps the text
+// contiguous, so losslessness never depends on this choice.
+function pickChunkSplit(text, target) {
+    const winStart = target - 200;
+    const searchWindow = text.substring(winStart, target + 200);
+    const paraCrlf = searchWindow.indexOf('\r\n\r\n');
+    if (paraCrlf !== -1) return winStart + paraCrlf + 4;
+    const paraLf = searchWindow.indexOf('\n\n');
+    if (paraLf !== -1) return winStart + paraLf + 2;
+    const sentenceBreak = searchWindow.search(/\.[\s\r\n]/);
+    if (sentenceBreak !== -1) return winStart + sentenceBreak + 2;
+    const spaceBreak = searchWindow.lastIndexOf(' ');
+    if (spaceBreak !== -1 && spaceBreak > 150) return winStart + spaceBreak + 1;
+    return target;
+}
+
+function buildChunks(text) {
+    const chunks = [];
     let currentPos = 0;
-    
     while (currentPos < text.length) {
-        if (currentPos + targetLength >= text.length) {
-            pages.push(text.substring(currentPos).trim());
-            break;
+        let splitPos = (currentPos + CHUNK_TARGET_LENGTH >= text.length)
+            ? text.length
+            : pickChunkSplit(text, currentPos + CHUNK_TARGET_LENGTH);
+        // Never split a UTF-16 surrogate pair.
+        if (splitPos < text.length && isLowSurrogate(text.charCodeAt(splitPos))) {
+            splitPos--;
         }
-        
-        let splitPos = currentPos + targetLength;
-        let searchWindow = text.substring(splitPos - 200, splitPos + 200);
-        let paraBreak = searchWindow.indexOf('\n\n');
-        
-        if (paraBreak !== -1) {
-            splitPos = (splitPos - 200) + paraBreak + 2;
-        } else {
-            let sentenceBreak = searchWindow.search(/\.[\s\r\n]/);
-            if (sentenceBreak !== -1) {
-                splitPos = (splitPos - 200) + sentenceBreak + 2;
-            } else {
-                let spaceBreak = searchWindow.lastIndexOf(' ');
-                if (spaceBreak !== -1 && spaceBreak > 150) {
-                    splitPos = (splitPos - 200) + spaceBreak + 1;
-                }
-            }
+        // Guard: always make forward progress.
+        if (splitPos <= currentPos) {
+            splitPos = Math.min(text.length, currentPos + 1);
+            if (splitPos < text.length && isLowSurrogate(text.charCodeAt(splitPos))) splitPos++;
         }
-        
-        pages.push(text.substring(currentPos, splitPos).trim());
+        chunks.push({
+            index: chunks.length,
+            startOffset: currentPos,
+            endOffset: splitPos,
+            text: text.substring(currentPos, splitPos)
+        });
         currentPos = splitPos;
     }
-    
-    pages = pages.filter(p => p.length > 0);
+    return chunks;
+}
+
+// Legacy page view: virtual cover + raw chunk texts (Phase 0A: former trim()
+// and empty-filter removed — pages are now exact contiguous substrings).
+// Manual ---/[PAGE] separator mode is kept as-is for compatibility, but is not
+// offset-addressable; no current book uses it (documented limitation).
+function paginateText(text) {
+    const manualSeparator = /\r?\n---\r?\n|\r?\n\[PAGE\]\r?\n/;
+    if (manualSeparator.test(text)) {
+        const parts = text.split(/\r?\n---\r?\n|\r?\n\[PAGE\]\r?\n/g)
+            .map(p => p.trim()).filter(p => p.length > 0);
+        parts.unshift('##COVER##');
+        return parts;
+    }
+    const pages = buildChunks(text).map(c => c.text);
     pages.unshift('##COVER##'); // cover is always page 1
     return pages;
 }
@@ -203,9 +234,11 @@ app.get('/api/books/:id/read', async (req, res) => {
 
         if (useLocalFallback) {
             const entry = findInCatalog(bookId);
+            // Legacy no-catalog fallback: path.basename strips any directory
+            // components from the id (directory traversal hardening, Phase 0A).
             const filePath = entry
                 ? path.join(__dirname, '..', '..', entry.textFile)
-                : path.join(uploadsDir, bookId);
+                : path.join(uploadsDir, path.basename(bookId));
             if (!fs.existsSync(filePath)) {
                 return res.status(404).json({ error: 'Книгата не е намерена локално!' });
             }
@@ -229,14 +262,84 @@ app.get('/api/books/:id/read', async (req, res) => {
         }
         
         const pages = paginateText(content);
+        const chunks = buildChunks(content);
         const bookKey = getBookKey(bookId);
-        
+
         res.json({
             id: bookId,
             title: title,
             subtitle: subtitle || '',
-            totalPages: pages.length,
+            totalPages: pages.length,          // legacy: cover + logical chunks
+            totalChars: content.length,        // Phase 0A: exact reader-ready length
+            chunkCount: chunks.length,         // Phase 0A: logical chunk count (no cover)
+            // Compact ranges: element i is chunk i's endOffset;
+            // startOffset(i) = i === 0 ? 0 : chunkRanges[i - 1]. Enables exact
+            // v1 progress migration (legacy page K maps to chunk K - 2).
+            chunkRanges: chunks.map(c => c.endOffset),
             meta: Buffer.from(bookKey).toString('base64')
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 2b. Phase 0A: batch of encrypted logical chunks with exact offsets.
+// bookId is resolved ONLY through the catalog (local mode) or the books table
+// (Supabase mode) — never used as a filesystem path (no directory traversal).
+app.get('/api/books/:id/chunks', async (req, res) => {
+    try {
+        const bookId = req.params.id;
+        if (!/^\d+$/.test(req.query.from || '') || !/^\d+$/.test(req.query.to || '')) {
+            return res.status(400).json({ error: 'Параметрите from и to трябва да са цели числа!' });
+        }
+        const from = parseInt(req.query.from, 10);
+        const to = parseInt(req.query.to, 10);
+        if (to < from) {
+            return res.status(400).json({ error: 'Невалиден диапазон: to е преди from!' });
+        }
+        if (to - from + 1 > CHUNK_BATCH_MAX) {
+            return res.status(400).json({ error: 'Максимален размер на batch заявка: ' + CHUNK_BATCH_MAX + ' chunks!' });
+        }
+
+        let content = '';
+        if (useLocalFallback) {
+            const entry = findInCatalog(bookId);
+            if (!entry) {
+                return res.status(404).json({ error: 'Книгата не е намерена локално!' });
+            }
+            const filePath = path.join(__dirname, '..', '..', entry.textFile);
+            if (!fs.existsSync(filePath)) {
+                return res.status(404).json({ error: 'Книгата не е намерена локално!' });
+            }
+            content = fs.readFileSync(filePath, 'utf8');
+        } else {
+            const { data, error } = await supabase
+                .from('books')
+                .select('content')
+                .eq('id', bookId)
+                .single();
+            if (error || !data) {
+                return res.status(404).json({ error: 'Книгата не е намерена в базата данни!' });
+            }
+            content = data.content;
+        }
+
+        const chunks = buildChunks(content);
+        if (from >= chunks.length || to >= chunks.length) {
+            return res.status(400).json({ error: 'Извън границите: книгата има ' + chunks.length + ' chunks!' });
+        }
+
+        const bookKey = getBookKey(bookId);
+        res.json({
+            bookId: bookId,
+            from: from,
+            to: to,
+            chunks: chunks.slice(from, to + 1).map(c => ({
+                index: c.index,
+                startOffset: c.startOffset,
+                endOffset: c.endOffset,
+                content: encryptText(c.text, bookKey)
+            }))
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -252,9 +355,10 @@ app.get('/api/books/:id/page/:num', async (req, res) => {
 
         if (useLocalFallback) {
             const entry = findInCatalog(bookId);
+            // Legacy no-catalog fallback with traversal hardening (Phase 0A).
             const filePath = entry
                 ? path.join(__dirname, '..', '..', entry.textFile)
-                : path.join(uploadsDir, bookId);
+                : path.join(uploadsDir, path.basename(bookId));
             if (!fs.existsSync(filePath)) {
                 return res.status(404).json({ error: 'Книгата не е намерена локално!' });
             }
@@ -295,3 +399,6 @@ app.get('/api/books/:id/page/:num', async (req, res) => {
 // Netlify serverless handler wrapper
 module.exports.app = app;
 module.exports.handler = serverless(app);
+// Phase 0A: exported for tests/pagination-conservation.test.js (no runtime effect)
+module.exports.buildChunks = buildChunks;
+module.exports.paginateText = paginateText;
