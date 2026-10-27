@@ -31,17 +31,105 @@
     color-scheme: dark;
 }
 
-/* Smoke background canvas */
-#smoke-canvas {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    pointer-events: none;
+/* ==========================================================================
+   Reading themes — reader screen only.
+   The palette lives in --reader-* variables. The same variables feed the
+   canvas renderer (reader.js reads them), so there is one source of truth.
+   The data-theme attribute is set on <html>; the swatches in the theme menu
+   carry their own data-theme, which makes them preview their own palette.
+   Gold on light themes is darkened so text and icons keep WCAG AA (>= 4.5:1).
+   ========================================================================== */
+:root,
+[data-theme="dark"] {
+    --reader-page: #0f1012;            /* area around the page */
+    --reader-bg: #16171b;              /* the page */
+    --reader-text: #e6e2d8;
+    --reader-meta: #a5a196;            /* header/footer text on the page, muted labels */
+    --reader-border: rgba(255, 255, 255, 0.09);
+    --reader-surface: #1f2025;         /* buttons */
+    --reader-elevated: #272830;        /* select, menu */
+    --reader-header: rgba(22, 23, 27, 0.85);
+    --reader-arrow: rgba(22, 23, 27, 0.6);
+    --reader-track: rgba(255, 255, 255, 0.05);
+    --reader-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.6);
+    --reader-gold: #d4af37;
+    --reader-gold-hi: #f5d061;
+    --reader-gold-lo: #aa8210;
+    --reader-gold-line: rgba(212, 175, 55, 0.4);   /* decorative rules on the cover */
+    --reader-subtitle: #b99a3b;
+    --reader-on-gold: #16171b;
+    --reader-vignette: rgba(0, 0, 0, 0.3);
+    --reader-scheme: dark;
 }
 
-/* Lift all content above the smoke canvas */
+[data-theme="sepia"] {
+    --reader-page: #e6dac0;
+    --reader-bg: #f4ecd8;
+    --reader-text: #5b4636;
+    --reader-meta: #65513f;
+    --reader-border: rgba(91, 70, 54, 0.22);
+    --reader-surface: #efe5cd;
+    --reader-elevated: #e9dec3;
+    --reader-header: rgba(244, 236, 216, 0.92);
+    --reader-arrow: rgba(244, 236, 216, 0.8);
+    --reader-track: rgba(91, 70, 54, 0.14);
+    --reader-shadow: 0 10px 30px rgba(91, 70, 54, 0.22);
+    --reader-gold: #6f5518;
+    --reader-gold-hi: #735a1a;
+    --reader-gold-lo: #5f4813;
+    --reader-gold-line: rgba(111, 85, 24, 0.45);
+    --reader-subtitle: #6f5518;
+    --reader-on-gold: #ffffff;
+    --reader-vignette: rgba(91, 70, 54, 0.07);
+    --reader-scheme: light;
+}
+
+[data-theme="light"] {
+    --reader-page: #ecebe6;
+    --reader-bg: #fbfaf7;
+    --reader-text: #1f1f1f;
+    --reader-meta: #5c5c5c;
+    --reader-border: rgba(0, 0, 0, 0.12);
+    --reader-surface: #f3f1eb;
+    --reader-elevated: #ebe8e0;
+    --reader-header: rgba(251, 250, 247, 0.92);
+    --reader-arrow: rgba(251, 250, 247, 0.85);
+    --reader-track: rgba(0, 0, 0, 0.1);
+    --reader-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+    --reader-gold: #6f5518;
+    --reader-gold-hi: #735a1a;
+    --reader-gold-lo: #5f4813;
+    --reader-gold-line: rgba(111, 85, 24, 0.45);
+    --reader-subtitle: #6f5518;
+    --reader-on-gold: #ffffff;
+    --reader-vignette: rgba(0, 0, 0, 0.05);
+    --reader-scheme: light;
+}
+
+/* Map the palette onto the shared variables, scoped to the reader screen, so
+   every existing reader rule re-themes without per-element overrides. */
+#screen-reader {
+    --bg-main: var(--reader-page);
+    --bg-canvas: var(--reader-bg);
+    --bg-surface: var(--reader-surface);
+    --bg-surface-elevated: var(--reader-elevated);
+    --text-primary: var(--reader-text);
+    --text-secondary: var(--reader-meta);
+    --text-muted: var(--reader-meta);
+    --gold-primary: var(--reader-gold);
+    --gold-hover: var(--reader-gold);
+    --gold-gradient: linear-gradient(135deg, var(--reader-gold-hi) 0%, var(--reader-gold) 50%, var(--reader-gold-lo) 100%);
+    --border-color: var(--reader-border);
+    background-color: var(--reader-page);
+    color-scheme: var(--reader-scheme);
+}
+
+/* Header logo gradient follows the theme (SVG stops are presentation attributes) */
+#gold-grad stop:nth-child(1) { stop-color: var(--reader-gold-hi); }
+#gold-grad stop:nth-child(2) { stop-color: var(--reader-gold); }
+#gold-grad stop:nth-child(3) { stop-color: var(--reader-gold-lo); }
+
+/* Lift all content above the screen background */
 header,
 .reader-container,
 .security-alert,
@@ -88,7 +176,7 @@ body {
 
 /* Layout Elements — reader screen header only (must NOT leak into .lib-header) */
 #screen-reader header {
-    background-color: rgba(17, 23, 38, 0.8);
+    background-color: var(--reader-header);
     border-bottom: 1px solid var(--border-color);
     padding: 1.2rem 2rem;
     position: sticky;
@@ -214,7 +302,7 @@ body {
     position: relative;
     background-color: var(--bg-canvas);
     border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-lg), 0 0 40px rgba(0,0,0,0.6);
+    box-shadow: var(--reader-shadow);
     border-radius: 8px;
     display: flex;
     justify-content: center;
@@ -241,7 +329,7 @@ body {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background-color: rgba(17, 23, 38, 0.6);
+    background-color: var(--reader-arrow);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     display: flex;
@@ -257,7 +345,7 @@ body {
 
 .nav-arrow:hover {
     background-color: var(--gold-primary);
-    color: #000;
+    color: var(--reader-on-gold);
     border-color: var(--gold-primary);
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
 }
@@ -347,11 +435,6 @@ body {
 
     .logo-text {
         font-size: 1.1rem;
-        /* дълго заглавие (напр. „Човекът – пресечна точка…") не бива да разтяга лентата */
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
     }
 
     .canvas-wrapper {
@@ -389,7 +472,7 @@ body {
 .progress-bar-container {
     width: 100%;
     height: 6px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--reader-track);
     border-radius: 3px;
     cursor: pointer;
     touch-action: manipulation;
@@ -473,11 +556,13 @@ body {
     align-items: center;
     gap: 10px;
     pointer-events: none;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0;   /* its red box-shadow would otherwise bleed into the top edge while hidden */
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
 }
 
 .security-alert.show {
     transform: translateX(-50%) translateY(0);
+    opacity: 1;
 }
 
 /* Toast Notifications */
@@ -540,8 +625,16 @@ body {
    Library Screen
    ========================================================================== */
 
+/* Library: static dark background with a barely visible gold accent at the top.
+   No animation. */
+#screen-library {
+    background:
+        radial-gradient(ellipse 70% 40% at 50% 0%, rgba(212, 175, 55, 0.06), transparent 70%),
+        #16171b;
+}
+
 .lib-header {
-    background-color: rgba(9, 13, 22, 0.85);
+    background-color: rgba(22, 23, 27, 0.85);
     border-bottom: 1px solid var(--border-color);
     padding: 1rem 2rem;
     flex-shrink: 0;
@@ -602,9 +695,6 @@ body {
     overscroll-behavior: contain;
     padding: 2rem 2.5rem;
     scrollbar-gutter: stable;
-    background: rgba(9, 13, 22, 0.88);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
 }
 
 /* Sections */
@@ -881,6 +971,113 @@ body {
     border-color: var(--gold-primary);
     color: var(--gold-primary);
     background: var(--gold-light);
+}
+
+/* Header must never overflow the viewport: title shrinks, controls keep size */
+.header-left {
+    min-width: 0;
+    flex: 1;
+}
+
+.header-actions {
+    flex-shrink: 0;
+}
+
+#book-select {
+    max-width: 38vw;
+    text-overflow: ellipsis;
+}
+
+/* Reading-theme menu ("Аа") */
+.theme-wrap {
+    position: relative;
+}
+
+#theme-menu-btn {
+    font-family: var(--font-reader);
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.theme-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 190px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    z-index: 200;
+}
+
+.theme-menu[hidden] {
+    display: none;
+}
+
+.theme-opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 10px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.theme-opt:hover,
+.theme-opt:focus-visible {
+    background-color: var(--bg-surface);
+    outline: none;
+}
+
+.theme-opt[aria-checked="true"] {
+    border-color: var(--gold-primary);
+    font-weight: 600;
+}
+
+/* Each swatch carries its own data-theme, so it previews its own palette */
+.theme-swatch {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background-color: var(--reader-bg);
+    color: var(--reader-text);
+    border: 1px solid var(--reader-meta);
+    font-family: var(--font-reader);
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+/* Phones: the "Аа" button sits mid-header, so the menu opens rightwards (stays on
+   screen), and the book title text is dropped from the bar — the book select
+   already shows it, and the page header repeats it. */
+@media (max-width: 768px) {
+    .theme-menu {
+        right: auto;
+        left: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    #reader-book-title {
+        display: none;
+    }
 }
 
 /* Reader screen layout inside .screen */

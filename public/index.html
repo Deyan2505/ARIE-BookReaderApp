@@ -6,6 +6,13 @@
     <title>ARIE — Библиотека</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/css/styles.css">
+    <script>
+        // Apply the saved reading theme before first paint (no flash). Reader screen only.
+        try {
+            var t = localStorage.getItem('arie_theme');
+            if (t === 'dark' || t === 'sepia' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+    </script>
 </head>
 <body class="reader-body">
 
@@ -20,9 +27,6 @@
         <i class="fa-solid" id="toast-icon"></i>
         <span id="toast-message"></span>
     </div>
-
-    <!-- WebGL Smoke Background (z-index 0, behind all screens) -->
-    <canvas id="smoke-canvas" aria-hidden="true"></canvas>
 
     <!-- ============================================================
          SCREEN 1: LIBRARY
@@ -126,6 +130,20 @@
             </div>
 
             <div class="header-actions">
+                <div class="theme-wrap">
+                    <button class="btn-tool" id="theme-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" aria-label="Тема на четене" title="Тема на четене">Аа</button>
+                    <div class="theme-menu" id="theme-menu" role="menu" aria-label="Тема на четене" hidden>
+                        <button class="theme-opt" type="button" role="menuitemradio" aria-checked="true" data-theme-opt="dark">
+                            <span class="theme-swatch" data-theme="dark" aria-hidden="true">Аа</span>Тъмна
+                        </button>
+                        <button class="theme-opt" type="button" role="menuitemradio" aria-checked="false" data-theme-opt="sepia">
+                            <span class="theme-swatch" data-theme="sepia" aria-hidden="true">Аа</span>Сепия
+                        </button>
+                        <button class="theme-opt" type="button" role="menuitemradio" aria-checked="false" data-theme-opt="light">
+                            <span class="theme-swatch" data-theme="light" aria-hidden="true">Аа</span>Светла
+                        </button>
+                    </div>
+                </div>
                 <div class="select-wrapper">
                     <i class="fa-solid fa-book-bookmark" aria-hidden="true"></i>
                     <select id="book-select" aria-label="Избери книга">
@@ -163,9 +181,6 @@
                         <button class="btn-tool" id="font-increase-btn" aria-label="Увеличи шрифта" title="Увеличи шрифта">
                             <i class="fa-solid fa-plus" aria-hidden="true"></i>
                         </button>
-                        <button class="btn-tool" id="theme-toggle-btn" aria-label="Смени темата" title="Смени фона">
-                            <i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
-                        </button>
                         <button class="btn-tool" id="fullscreen-btn" aria-label="Цял екран" title="Цял екран">
                             <i class="fa-solid fa-expand" aria-hidden="true"></i>
                         </button>
@@ -177,7 +192,6 @@
 
     </div>
 
-    <script src="/js/smoke.js"></script>
     <script src="/js/reader.js"></script>
 </body>
 </html>

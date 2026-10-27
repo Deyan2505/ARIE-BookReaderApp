@@ -138,6 +138,62 @@ checkConservation('no trailing newline', 'Финално изречение бе
 checkConservation('BOM preserved as content', '﻿' + 'Текст след BOM.\n\nВтори абзац.'.repeat(80));
 checkConservation('exact multiple of target length', 'х'.repeat(2400));
 
+// ── Reader shell: no smoke animation, reading themes keep WCAG AA ──────────
+console.log('== Reader shell ==');
+const indexHtml = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+const stylesCss = fs.readFileSync(path.join(root, 'public', 'css', 'styles.css'), 'utf8');
+
+check('index.html does not load smoke.js and has no #smoke-canvas', () => {
+    assert.ok(!/<script[^>]+smoke/i.test(indexHtml), 'index.html loads smoke.js');
+    assert.ok(!/smoke-canvas/.test(indexHtml), 'index.html still has #smoke-canvas');
+    assert.ok(!/smoke-canvas/.test(stylesCss), 'styles.css still styles #smoke-canvas');
+    assert.ok(!/smoke/i.test(fs.readFileSync(path.join(root, 'public', 'js', 'reader.js'), 'utf8')),
+        'reader.js references smoke');
+});
+check('smoke.js is kept in the repo (unused)', () =>
+    assert.ok(fs.existsSync(path.join(root, 'public', 'js', 'smoke.js'))));
+
+function luminance(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+}
+function contrast(a, b) {
+    const x = luminance(a), y = luminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+const paletteBlocks = {
+    dark:  /:root,\s*\[data-theme="dark"\]\s*\{([^}]*)\}/,
+    sepia: /\[data-theme="sepia"\]\s*\{([^}]*)\}/,
+    light: /\[data-theme="light"\]\s*\{([^}]*)\}/
+};
+for (const [name, re] of Object.entries(paletteBlocks)) {
+    check(`theme ${name}: palette present and text/gold contrast >= 4.5:1 (WCAG AA)`, () => {
+        const block = stylesCss.match(re);
+        assert.ok(block, 'palette block not found in styles.css');
+        const v = {};
+        for (const m of block[1].matchAll(/--reader-([a-z-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) v[m[1]] = m[2];
+        const pairs = [
+            ['text', 'bg'], ['text', 'page'], ['text', 'surface'], ['text', 'elevated'],
+            ['meta', 'bg'], ['meta', 'page'], ['meta', 'elevated'],
+            ['gold', 'bg'], ['gold', 'page'], ['gold', 'surface'], ['gold', 'elevated'],
+            ['gold-hi', 'bg'], ['gold-hi', 'page'], ['gold-lo', 'bg'], ['gold-lo', 'page'],
+            ['subtitle', 'bg'], ['on-gold', 'gold']
+        ];
+        for (const [fg, bg] of pairs) {
+            assert.ok(v[fg] && v[bg], `missing --reader-${fg} or --reader-${bg}`);
+            const r = contrast(v[fg], v[bg]);
+            assert.ok(r >= 4.5, `--reader-${fg} ${v[fg]} on --reader-${bg} ${v[bg]} = ${r.toFixed(2)}:1 (< 4.5)`);
+        }
+    });
+}
+check('theme menu markup: three themes, no leftover theme-toggle-btn', () => {
+    for (const t of ['dark', 'sepia', 'light']) {
+        assert.ok(indexHtml.includes(`data-theme-opt="${t}"`), 'menu option missing: ' + t);
+    }
+    assert.ok(!indexHtml.includes('theme-toggle-btn'), 'old theme-toggle-btn still present');
+});
+
 // ── Legacy /page parity and v1 progress migration formula ─────────────────
 console.log('== Legacy parity: paginateText vs buildChunks ==');
 for (const { entry, text, chunks } of books) {

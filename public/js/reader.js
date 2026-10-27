@@ -36,7 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalPagesNumEl   = document.getElementById('total-pages-num');
     const fontDecreaseBtn   = document.getElementById('font-decrease-btn');
     const fontIncreaseBtn   = document.getElementById('font-increase-btn');
-    const themeToggleBtn    = document.getElementById('theme-toggle-btn');
+    const themeMenuBtn      = document.getElementById('theme-menu-btn');
+    const themeMenu         = document.getElementById('theme-menu');
     const fullscreenBtn     = document.getElementById('fullscreen-btn');
     const progressBarFill   = document.getElementById('progress-bar-fill');
     const progressContainer = document.getElementById('progress-container');
@@ -240,6 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // If books are cached, just re-render (progress may have changed)
         if (libraryLoaded) {
             if (allBooks.length > 0) {
+                // The reader may have loaded the list first (direct link to a book):
+                // the sections are only made visible on the first library load.
+                libLoading.classList.remove('visible');
+                sectionAll.classList.add('visible');
                 renderGrid(gridAll, allBooks);
                 renderRecentSection();
             }
@@ -351,17 +356,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHUNK_BATCH = 64;        // client batch size (server cap: 64)
     const PLAIN_CACHE_MAX = 6;     // max simultaneously decrypted chunks
 
-    const themes = {
-        'dark': {
-            bg: '#121824', text: '#e2e8f0', meta: '#64748b', border: '#1e293b'
-        },
-        'pitch-black': {
-            bg: '#05070a', text: '#cbd5e1', meta: '#475569', border: '#0f172a'
-        },
-        'sepia': {
-            bg: '#1c1710', text: '#dfd2bc', meta: '#8b7c67', border: '#2e251a'
-        }
-    };
+    // Reading themes. The palette is defined ONCE, in CSS (--reader-* variables
+    // under [data-theme] in styles.css); the canvas reads the same variables, so
+    // DOM and canvas can never disagree.
+    const THEMES = ['dark', 'sepia', 'light'];
+    let colors = {};   // canvas palette for the active theme
+
+    function readThemeColors() {
+        const cs = getComputedStyle(document.documentElement);
+        const v = n => cs.getPropertyValue('--reader-' + n).trim();
+        colors = {
+            bg: v('bg'), text: v('text'), meta: v('meta'), border: v('border'),
+            gold: v('gold'), goldLine: v('gold-line'), subtitle: v('subtitle'),
+            vignette: v('vignette')
+        };
+    }
+
+    function savedTheme() {
+        try {
+            const t = localStorage.getItem('arie_theme');
+            return THEMES.includes(t) ? t : 'dark';
+        } catch (e) { return 'dark'; }
+    }
+
+    // Applies a theme and redraws the CURRENT page only: no reload, no relayout,
+    // so the reading position (currentVisual / offsets) is untouched.
+    function setTheme(name, persist) {
+        if (!THEMES.includes(name)) name = 'dark';
+        currentTheme = name;
+        document.documentElement.setAttribute('data-theme', name);
+        if (persist) { try { localStorage.setItem('arie_theme', name); } catch (e) {} }
+        readThemeColors();
+        themeMenu.querySelectorAll('[data-theme-opt]').forEach(b =>
+            b.setAttribute('aria-checked', String(b.dataset.themeOpt === name)));
+        renderCurrent();
+    }
+
+    // Initial theme: the inline <script> in <head> already set data-theme.
+    currentTheme = savedTheme();
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    readThemeColors();
+    themeMenu.querySelectorAll('[data-theme-opt]').forEach(b =>
+        b.setAttribute('aria-checked', String(b.dataset.themeOpt === currentTheme)));
 
     // ── XOR Decryption (unchanged from original) ─────────────────────────────
     function decryptText(base64Str, key) {
@@ -871,8 +907,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawLogoWatermark(ctx, width, height) {
         ctx.save();
         ctx.globalAlpha = 0.055;
-        ctx.strokeStyle = '#d4af37';
-        ctx.fillStyle = '#d4af37';
+        ctx.strokeStyle = colors.gold;
+        ctx.fillStyle = colors.gold;
         ctx.lineCap = 'round';
 
         const size = 48, stepX = 130, stepY = 130;
@@ -936,18 +972,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = rect.width, h = rect.height;
 
         // Background
-        ctx.fillStyle = themes[currentTheme].bg;
+        ctx.fillStyle = colors.bg;
         ctx.fillRect(0, 0, w, h);
 
         // Radial glow
         const vig = ctx.createRadialGradient(w / 2, h * 0.4, h * 0.05, w / 2, h * 0.4, h * 0.7);
         vig.addColorStop(0, 'rgba(212,175,55,0.05)');
-        vig.addColorStop(1, 'rgba(0,0,0,0.3)');
+        vig.addColorStop(1, colors.vignette);
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, w, h);
 
         // Horizontal gold lines
-        ctx.strokeStyle = 'rgba(212,175,55,0.4)';
+        ctx.strokeStyle = colors.goldLine;
         ctx.lineWidth = 0.7;
         ctx.beginPath();
         ctx.moveTo(w * 0.12, h * 0.22); ctx.lineTo(w * 0.88, h * 0.22);
@@ -960,8 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.translate(w / 2 - ls / 2, h * 0.28 - ls / 2);
         ctx.scale(sc, sc);
-        ctx.strokeStyle = '#d4af37';
-        ctx.fillStyle   = '#d4af37';
+        ctx.strokeStyle = colors.gold;
+        ctx.fillStyle   = colors.gold;
         ctx.lineCap = 'round';
 
         ctx.lineWidth = 2.5 / sc;
@@ -988,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         const tSize = Math.min(Math.max(w * 0.044, 16), 28);
-        ctx.fillStyle = '#d4af37';
+        ctx.fillStyle = colors.gold;
         ctx.font = `700 ${tSize}px 'Outfit', sans-serif`;
         const maxW = w * 0.76;   // inside the gold rules (0.12 .. 0.88)
         const titleLines = wrapLines(bookTitle, maxW, 3);
@@ -998,14 +1034,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Subtitle (wrapped + clamped to 3 lines with an ellipsis; data stays whole)
         if (bookSubtitle) {
             const sSize = tSize * 0.6;
-            ctx.fillStyle = 'rgba(212,175,55,0.6)';
+            ctx.fillStyle = colors.subtitle;
             ctx.font = `italic ${sSize}px 'Lora', serif`;
             const y0 = h * 0.52 + (titleLines.length - 1) * titleLh + tSize * 1.7;
             wrapLines(bookSubtitle, maxW, 3).forEach((ln, i) => ctx.fillText(ln, w / 2, y0 + i * sSize * 1.4));
         }
 
         // Footer
-        ctx.fillStyle = 'rgba(107,114,128,0.6)';
+        ctx.fillStyle = colors.meta;
         ctx.font = `10px 'Outfit', sans-serif`;
         ctx.letterSpacing = '0.12em';
         ctx.fillText('ARIE SECURE READER', w / 2, h * 0.83);
@@ -1019,19 +1055,19 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.scale(dpr, dpr);
         const w = rect.width, h = rect.height;
 
-        ctx.fillStyle = themes[currentTheme].bg;
+        ctx.fillStyle = colors.bg;
         ctx.fillRect(0, 0, w, h);
-        ctx.strokeStyle = themes[currentTheme].border;
+        ctx.strokeStyle = colors.border;
         ctx.lineWidth = 1;
         ctx.strokeRect(FRAME_INSET, FRAME_INSET, w - FRAME_INSET * 2, h - FRAME_INSET * 2);
 
-        ctx.fillStyle = '#d4af37';
+        ctx.fillStyle = colors.gold;
         ctx.font = `600 15px 'Outfit', sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(msg, w / 2, h / 2);
 
-        ctx.fillStyle = 'rgba(107,114,128,0.6)';
+        ctx.fillStyle = colors.meta;
         ctx.font = `10px 'Outfit', sans-serif`;
         ctx.fillText('ARIE SECURE READER', w / 2, h / 2 + 28);
     }
@@ -1044,7 +1080,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const m = layoutMetrics;
         if (!page || !m) return;
 
-        const theme = themes[currentTheme];
+        const theme = colors;
         const rect  = canvasWrapper.getBoundingClientRect();
         const dpr   = window.devicePixelRatio || 1;
         canvas.width  = rect.width  * dpr;
@@ -1137,13 +1173,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fontSize > 12 && !layoutBusy) { fontSize -= 2; repaginateAroundOffset(); }
     });
 
-    // Theme cycle → redraw only (theme is not part of the layout signature)
-    themeToggleBtn.addEventListener('click', () => {
-        if (currentTheme === 'dark')        currentTheme = 'pitch-black';
-        else if (currentTheme === 'pitch-black') currentTheme = 'sepia';
-        else                                currentTheme = 'dark';
-        renderCurrent();
+    // Theme menu ("Аа") → redraw only (theme is not part of the layout signature)
+    function setThemeMenu(open) {
+        themeMenu.hidden = !open;
+        themeMenuBtn.setAttribute('aria-expanded', String(open));
+    }
+    themeMenuBtn.addEventListener('click', () => setThemeMenu(themeMenu.hidden));
+    themeMenu.addEventListener('click', (e) => {
+        const opt = e.target.closest('[data-theme-opt]');
+        if (!opt) return;
+        setTheme(opt.dataset.themeOpt, true);
+        setThemeMenu(false);
+        themeMenuBtn.focus();
     });
+    document.addEventListener('click', (e) => {
+        if (!themeMenu.hidden && !e.target.closest('.theme-wrap')) setThemeMenu(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !themeMenu.hidden) { setThemeMenu(false); themeMenuBtn.focus(); }
+    });
+    window.addEventListener('hashchange', () => setThemeMenu(false));
 
     // Fullscreen (the following resize event triggers repagination if needed)
     fullscreenBtn.addEventListener('click', () => {
