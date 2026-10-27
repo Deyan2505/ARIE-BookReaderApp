@@ -347,6 +347,11 @@ body {
 
     .logo-text {
         font-size: 1.1rem;
+        /* дълго заглавие (напр. „Човекът – пресечна точка…") не бива да разтяга лентата */
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     .canvas-wrapper {
@@ -487,8 +492,11 @@ body {
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-lg);
     z-index: 1000;
-    transform: translateY(150%);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    /* 100% + bottom offset (max 2rem) + shadow: fully off-screen, no peeking sliver */
+    transform: translateY(calc(100% + 3rem));
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -496,6 +504,7 @@ body {
 
 .toast.show {
     transform: translateY(0);
+    opacity: 1;
 }
 
 .toast-success i {

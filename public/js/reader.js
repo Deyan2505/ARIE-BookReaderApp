@@ -108,14 +108,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // older client keeps working after a rollback.
     // =========================================================================
 
-    function loadProgressRaw(bId) {
-        try { return JSON.parse(localStorage.getItem('arie_p_' + bId)) || null; }
+    // Saved progress belongs to one edition of the text. A different or missing
+    // bookVersion (catalog.json) means the stored offsets no longer map to this
+    // text, so the record is ignored (and overwritten on the next persist).
+    function loadProgressRaw(bId, ver) {
+        try {
+            const raw = JSON.parse(localStorage.getItem('arie_p_' + bId)) || null;
+            return raw && raw.bv === ver ? raw : null;
+        }
         catch(e) { return null; }
     }
 
     // Library card display adapter — understands both v1 and v2 records.
-    function progressDisplay(bId) {
-        const raw = loadProgressRaw(bId);
+    function progressDisplay(bId, ver) {
+        const raw = loadProgressRaw(bId, ver);
         if (!raw) return null;
         if (raw.v === 2) {
             return {
@@ -173,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function makeBookCard(book) {
-        const progress = progressDisplay(book.id);
+        const progress = progressDisplay(book.id, book.bookVersion || 1);
         const pct = progress ? progress.pct : 0;
         const hasProgress = pct > 0;
 
@@ -307,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let bookId = '';
     let bookTitle = 'Книга';
     let bookSubtitle = '';
+    let bookVersion = 1;
     let encryptionKey = '';
     let fontSize = 20;
     let currentTheme = 'dark';
@@ -673,6 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const legacyPage = onCover ? 1 : (chunkIndexAt(off) + 2);
             localStorage.setItem('arie_p_' + bookId, JSON.stringify({
                 v: 2,
+                bv: bookVersion,
                 offset: off,
                 percent: totalChars ? off / totalChars : 0,
                 visualPage: currentVisual + 1,
@@ -789,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             bookTitle    = data.title;
             bookSubtitle = data.subtitle || '';
+            bookVersion  = data.bookVersion || 1;
             bookTitleEl.textContent = bookTitle;
             document.title = 'ARIE — ' + bookTitle;
             encryptionKey = atob(data.meta);
@@ -814,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await fontsReady();
             if (myGen !== generation) return;
 
-            const target = resolveStartPosition(loadProgressRaw(id));
+            const target = resolveStartPosition(loadProgressRaw(id, bookVersion));
             if (!(await runLayout(myGen))) return;
             currentVisual = target.cover ? 0 : findVisualPageByOffset(target.offset) + 1;
             renderCurrent();
@@ -898,6 +907,26 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.restore();
     }
 
+    // Greedy word wrap with the CURRENT ctx.font; the last allowed line is cut
+    // with an ellipsis when the text does not fit in maxLines.
+    function wrapLines(text, maxW, maxLines) {
+        const lines = [];
+        let cur = '';
+        for (const word of String(text).split(/\s+/).filter(Boolean)) {
+            const next = cur ? cur + ' ' + word : word;
+            if (cur && ctx.measureText(next).width > maxW) { lines.push(cur); cur = word; }
+            else cur = next;
+        }
+        if (cur) lines.push(cur);
+        if (lines.length > maxLines) {
+            let last = lines.slice(maxLines - 1).join(' ');
+            while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+            lines.length = maxLines - 1;
+            lines.push(last.trimEnd() + '…');
+        }
+        return lines;
+    }
+
     function renderCover() {
         const rect = canvasWrapper.getBoundingClientRect();
         const dpr  = window.devicePixelRatio || 1;
@@ -961,13 +990,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const tSize = Math.min(Math.max(w * 0.044, 16), 28);
         ctx.fillStyle = '#d4af37';
         ctx.font = `700 ${tSize}px 'Outfit', sans-serif`;
-        ctx.fillText(bookTitle, w / 2, h * 0.52);
+        const maxW = w * 0.76;   // inside the gold rules (0.12 .. 0.88)
+        const titleLines = wrapLines(bookTitle, maxW, 3);
+        const titleLh = tSize * 1.3;
+        titleLines.forEach((ln, i) => ctx.fillText(ln, w / 2, h * 0.52 + i * titleLh));
 
-        // Subtitle
+        // Subtitle (wrapped + clamped to 3 lines with an ellipsis; data stays whole)
         if (bookSubtitle) {
+            const sSize = tSize * 0.6;
             ctx.fillStyle = 'rgba(212,175,55,0.6)';
-            ctx.font = `italic ${tSize * 0.6}px 'Lora', serif`;
-            ctx.fillText(bookSubtitle, w / 2, h * 0.52 + tSize * 1.7);
+            ctx.font = `italic ${sSize}px 'Lora', serif`;
+            const y0 = h * 0.52 + (titleLines.length - 1) * titleLh + tSize * 1.7;
+            wrapLines(bookSubtitle, maxW, 3).forEach((ln, i) => ctx.fillText(ln, w / 2, y0 + i * sSize * 1.4));
         }
 
         // Footer

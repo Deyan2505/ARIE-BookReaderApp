@@ -177,6 +177,7 @@ app.get('/api/books', async (req, res) => {
                         seriesOrder: b.seriesOrder || null,
                         category: b.category || null,
                         language: b.language || null,
+                        bookVersion: b.bookVersion || 1,
                         publishedAt: b.publishedAt || null
                     }));
                 return res.json(books);
@@ -246,6 +247,7 @@ app.get('/api/books/:id/read', async (req, res) => {
             const meta = entry ? null : readBookMeta(filePath);
             title = entry ? entry.title : (meta ? meta.title : bookId.split('_').slice(1).join('_').replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
             var subtitle = entry ? (entry.subtitle || '') : (meta ? (meta.subtitle || '') : '');
+            var bookVersion = entry ? (entry.bookVersion || 1) : 1;
         } else {
             // Supabase Active
             const { data, error } = await supabase
@@ -269,6 +271,7 @@ app.get('/api/books/:id/read', async (req, res) => {
             id: bookId,
             title: title,
             subtitle: subtitle || '',
+            bookVersion: bookVersion || 1,     // bump in catalog.json when the text is replaced
             totalPages: pages.length,          // legacy: cover + logical chunks
             totalChars: content.length,        // Phase 0A: exact reader-ready length
             chunkCount: chunks.length,         // Phase 0A: logical chunk count (no cover)

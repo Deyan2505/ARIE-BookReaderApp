@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [functions]
-  included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json"]
+  included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json", "uploads/2_Paradoksat-na-maskata.txt", "uploads/Chovekat-presechna-tochka.txt"]
 
 # Redirect API calls to the serverless function handler
 [[redirects]]

@@ -7,7 +7,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const { buildChunks, paginateText } = require('../netlify/functions/api.js');
+const { app, buildChunks, paginateText } = require('../netlify/functions/api.js');
 
 let passed = 0;
 let failed = 0;
@@ -69,15 +69,51 @@ function checkConservation(label, text) {
 
 console.log('== Test 1: server chunking conservation ==');
 
-// ── Real book ──────────────────────────────────────────────────────────────
-const bookPath = path.join(__dirname, '..', 'uploads', '1_Paradoksat-na-bolkata.txt');
-const bookText = fs.readFileSync(bookPath, 'utf8');
-const bookChunks = checkConservation('real book (Парадоксът на болката)', bookText);
+// ── Real books: every entry of data/catalog.json ───────────────────────────
+const root = path.join(__dirname, '..');
+const catalog = JSON.parse(fs.readFileSync(path.join(root, 'data', 'catalog.json'), 'utf8'));
+const netlifyToml = fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8');
+
+function check(label, fn) {
+    try { fn(); console.log(`  PASS  ${label}`); passed++; }
+    catch (e) { console.error(`  FAIL  ${label}: ${e.message}`); failed++; }
+}
+
+const books = catalog.books.map(entry => {
+    const text = fs.readFileSync(path.join(root, entry.textFile), 'utf8');
+    return { entry, text, chunks: checkConservation(`real book ${entry.id}`, text) };
+});
 
 // BOM decision (documented): a BOM is treated as content and preserved.
-// The real book has no BOM; the synthetic case below proves preservation.
-assert.ok(bookText.charCodeAt(0) !== 0xFEFF, 'real book unexpectedly starts with BOM');
-console.log('  INFO  real book has no BOM (charCode[0]=' + bookText.charCodeAt(0) + ')');
+// The real books have no BOM; the synthetic case below proves preservation.
+for (const { entry, text } of books) {
+    check(`${entry.id}: no BOM`, () => assert.ok(text.charCodeAt(0) !== 0xFEFF, 'starts with BOM'));
+}
+
+// ── Catalog integrity: a bad entry here is a production 404 / wrong-progress bug
+console.log('== Catalog integrity ==');
+const ids = new Set();
+for (const { entry, text } of books) {
+    check(`catalog ${entry.id}`, () => {
+        assert.ok(!ids.has(entry.id), 'duplicate id');
+        ids.add(entry.id);
+        assert.ok(/^[a-z0-9-]+$/.test(entry.id), 'id must match ^[a-z0-9-]+$');
+        assert.ok(entry.title && entry.author, 'title and author are required');
+        assert.ok(Number.isInteger(entry.bookVersion) && entry.bookVersion >= 1,
+            'bookVersion must be an integer >= 1 (bump it when the text is replaced)');
+        assert.ok(entry.status === 'published' || entry.status === 'draft', 'unknown status');
+        assert.ok(entry.cover && fs.existsSync(path.join(root, 'public', entry.cover)),
+            'cover file missing: ' + entry.cover);
+        assert.ok(fs.statSync(path.join(root, 'public', entry.cover)).size <= 3 * 1024 * 1024,
+            'cover over 3 MB');
+        assert.ok(Buffer.byteLength(text) <= 5 * 1024 * 1024, 'text over 5 MB');
+        assert.ok(!text.includes('�'), 'contains U+FFFD (broken encoding)');
+        assert.ok(netlifyToml.includes(`"${entry.textFile}"`),
+            `netlify.toml included_files lacks ${entry.textFile} (production would 404)`);
+    });
+}
+const bookText = books[0].text;
+const bookChunks = books[0].chunks;
 
 // ── Synthetic structures ───────────────────────────────────────────────────
 checkConservation('empty text', '');
@@ -104,34 +140,62 @@ checkConservation('exact multiple of target length', 'х'.repeat(2400));
 
 // ── Legacy /page parity and v1 progress migration formula ─────────────────
 console.log('== Legacy parity: paginateText vs buildChunks ==');
-try {
-    const pages = paginateText(bookText);
-    assert.strictEqual(pages[0], '##COVER##', 'page 1 must be the virtual cover');
-    assert.strictEqual(pages.length, bookChunks.length + 1,
-        'legacy totalPages must equal chunkCount + 1');
-    // Migration formula proof: legacy API page K (K >= 2) === chunk[K - 2].
-    for (const K of [2, 6, 7, 100, pages.length]) {
-        assert.strictEqual(pages[K - 1], bookChunks[K - 2].text,
-            `legacy page ${K} !== chunk[${K - 2}]`);
-    }
-    console.log(`  PASS  legacy parity (totalPages=${pages.length}, chunkCount=${bookChunks.length}; page K == chunk[K-2] proven for K=2,6,7,100,${pages.length})`);
-    passed++;
-} catch (e) {
-    console.error(`  FAIL  legacy parity: ${e.message}`);
-    failed++;
+for (const { entry, text, chunks } of books) {
+    check(`legacy parity ${entry.id}`, () => {
+        const pages = paginateText(text);
+        assert.strictEqual(pages[0], '##COVER##', 'page 1 must be the virtual cover');
+        assert.strictEqual(pages.length, chunks.length + 1,
+            'legacy totalPages must equal chunkCount + 1');
+        // Migration formula proof: legacy API page K (K >= 2) === chunk[K - 2].
+        for (const K of [2, 6, 7, 100, pages.length]) {
+            assert.strictEqual(pages[K - 1], chunks[K - 2].text,
+                `legacy page ${K} !== chunk[${K - 2}]`);
+        }
+    });
 }
 
 // ── Boundary markers for the known screenshot regression (offsets only) ────
-try {
+check('screenshot boundary: chunk6/chunk7 contiguous', () => {
     const c6 = bookChunks[4]; // legacy visual page 6
     const c7 = bookChunks[5]; // legacy visual page 7
     assert.strictEqual(c6.endOffset, c7.startOffset, 'chunk 6/7 must be contiguous');
-    console.log(`  PASS  screenshot boundary: chunk6=[${c6.startOffset},${c6.endOffset}) chunk7=[${c7.startOffset},${c7.endOffset}) contiguous`);
-    passed++;
-} catch (e) {
-    console.error(`  FAIL  screenshot boundary: ${e.message}`);
-    failed++;
+});
+
+// ── HTTP: the real API over the real catalog ───────────────────────────────
+async function apiChecks() {
+    console.log('== API (local app) ==');
+    const server = require('http').createServer(app);
+    await new Promise(r => server.listen(0, r));
+    const base = 'http://localhost:' + server.address().port;
+    try {
+        const published = catalog.books.filter(b => b.status === 'published');
+        const list = await (await fetch(base + '/api/books')).json();
+        check('/api/books lists exactly the published books', () => {
+            assert.deepStrictEqual(list.map(b => b.id).sort(), published.map(b => b.id).sort());
+            for (const b of list) {
+                assert.strictEqual(b.bookVersion, catalog.books.find(x => x.id === b.id).bookVersion,
+                    `${b.id}: bookVersion not exposed`);
+            }
+        });
+        for (const { entry, text, chunks } of books.filter(b => b.entry.status === 'published')) {
+            const r = await (await fetch(`${base}/api/books/${entry.id}/read`)).json();
+            check(`/read ${entry.id}`, () => {
+                assert.strictEqual(r.totalChars, text.length);
+                assert.strictEqual(r.chunkCount, chunks.length);
+                assert.strictEqual(r.chunkRanges[r.chunkRanges.length - 1], text.length);
+                assert.strictEqual(r.bookVersion, entry.bookVersion);
+                assert.strictEqual(r.title, entry.title);
+            });
+        }
+    } catch (e) {
+        console.error(`  FAIL  api: ${e.message}`);
+        failed++;
+    }
+    server.closeAllConnections();   // fetch keep-alive would otherwise hold the process open
+    server.close();
 }
 
-console.log(`\n== RESULT: ${passed} passed, ${failed} failed ==`);
-process.exit(failed === 0 ? 0 : 1);
+apiChecks().then(() => {
+    console.log(`\n== RESULT: ${passed} passed, ${failed} failed ==`);
+    process.exitCode = failed === 0 ? 0 : 1;   // let the loop drain; process.exit() on Windows trips a libuv assert
+});
