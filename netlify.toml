@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [functions]
-  included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json", "uploads/2_Paradoksat-na-maskata.txt", "uploads/Chovekat-presechna-tochka.txt"]
+  included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json", "uploads/2_Paradoksat-na-maskata.txt", "uploads/Chovekat-presechna-tochka.txt", "uploads/3_Syankata-na-lyava.txt"]
 
 # API answers must never be served from a cache (a stale /api/books was seen after a deploy)
 [[headers]]

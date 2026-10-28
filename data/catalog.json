@@ -56,6 +56,25 @@
       "bookVersion": 1,
       "publishedAt": null,
       "updatedAt": null
+    },
+    {
+      "id": "syankata-na-lyava",
+      "title": "Сянката на Лъва",
+      "subtitle": "Епичната сага на фамилия Арие",
+      "author": "Деян Арие",
+      "seriesId": "semeystvo-arie",
+      "seriesTitle": "Семейство Арие",
+      "seriesOrder": 1,
+      "category": "novel",
+      "language": "bg",
+      "status": "published",
+      "description": null,
+      "cover": "/covers/syankata-na-lyava.webp",
+      "textFile": "uploads/3_Syankata-na-lyava.txt",
+      "format": "txt",
+      "bookVersion": 1,
+      "publishedAt": null,
+      "updatedAt": null
     }
   ]
 }
