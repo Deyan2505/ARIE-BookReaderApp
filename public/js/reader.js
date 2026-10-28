@@ -38,7 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontIncreaseBtn   = document.getElementById('font-increase-btn');
     const themeMenuBtn      = document.getElementById('theme-menu-btn');
     const themeMenu         = document.getElementById('theme-menu');
-    const fullscreenBtn     = document.getElementById('fullscreen-btn');
+    const focusBtn          = document.getElementById('focus-btn');
+    const focusExitBtn      = document.getElementById('focus-exit');
+    const focusHint         = document.getElementById('focus-hint');
+    const iosHint           = document.getElementById('ios-hint');
+    const iosHintOk         = document.getElementById('ios-hint-ok');
     const progressBarFill   = document.getElementById('progress-bar-fill');
     const progressContainer = document.getElementById('progress-container');
 
@@ -1204,55 +1208,101 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     window.addEventListener('hashchange', () => setThemeMenu(false));
 
-    // Fullscreen API: the button exists only where the browser supports it
-    // (Android Chrome, desktop). iPhone Safari has no Fullscreen API for pages,
-    // so there the button stays hidden and focus mode (below) is the way to go.
-    // The following resize event triggers repagination if needed.
+    // ── Focus mode + fullscreen ──────────────────────────────────────────────
+    // ONE button for everyone. Where the Fullscreen API exists (Android Chrome,
+    // desktop) it also goes truly fullscreen; on iPhone Safari there is no such
+    // API, so it is focus mode only. The reader never needs to know the difference.
+    // The page changes size in focus mode, so the layout is rebuilt around the kept
+    // text offset (see readAnchor).
     const fsRoot = document.documentElement;
-    if (document.fullscreenEnabled && typeof fsRoot.requestFullscreen === 'function') {
-        fullscreenBtn.hidden = false;
-        fullscreenBtn.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                fsRoot.requestFullscreen().catch(err => {
-                    showToast('Грешка при цял екран: ' + err.message, 'error');
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        });
-        document.addEventListener('fullscreenchange', () => {
-            const icon = fullscreenBtn.querySelector('i');
-            const on = !!document.fullscreenElement;
-            icon.classList.toggle('fa-compress', on);
-            icon.classList.toggle('fa-expand', !on);
-            fullscreenBtn.setAttribute('aria-label', on ? 'Изход от цял екран' : 'Цял екран');
-        });
+    const canFullscreen = !!(document.fullscreenEnabled && typeof fsRoot.requestFullscreen === 'function');
+    let focusOn = false;
+    let focusHintShown = false;
+    let exitBtnTimer = null, hintTimer = null;
+
+    // The exit button shows for 3 s, then fades; it comes back on page taps.
+    function showExitBtn() {
+        focusExitBtn.classList.add('visible');
+        clearTimeout(exitBtnTimer);
+        exitBtnTimer = setTimeout(() => focusExitBtn.classList.remove('visible'), 3000);
     }
 
-    // Focus mode (works everywhere): the middle of the page toggles the bars,
-    // the left/right thirds turn pages. The page then changes size, so the layout
-    // is rebuilt around the kept text offset (see readAnchor).
-    function setFocusMode(on) {
-        if (layoutBusy || !visualPages.length) return;
+    // One-time hint (remembered in localStorage; once per session if storage is unavailable).
+    function showFocusHint() {
+        if (focusHintShown) return;
+        focusHintShown = true;
+        try {
+            if (localStorage.getItem('arie_focus_hint')) return;
+            localStorage.setItem('arie_focus_hint', '1');
+        } catch (e) {}
+        focusHint.classList.add('visible');
+        clearTimeout(hintTimer);
+        hintTimer = setTimeout(() => focusHint.classList.remove('visible'), 4000);
+    }
+
+    // Pure state/DOM switch (no guards): also used when leaving the reader.
+    function applyFocus(on) {
+        focusOn = on;
         document.body.classList.toggle('focus-mode', on);
         setThemeMenu(false);
+        if (on) {
+            showExitBtn();
+            showFocusHint();
+        } else {
+            clearTimeout(exitBtnTimer);
+            clearTimeout(hintTimer);
+            focusExitBtn.classList.remove('visible');
+            focusHint.classList.remove('visible');
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        }
+    }
+
+    function setFocusMode(on) {
+        if (layoutBusy || !visualPages.length || on === focusOn) return;
+        applyFocus(on);
         onViewportChange();
     }
+
+    focusBtn.addEventListener('click', () => {
+        if (layoutBusy || !visualPages.length) return;
+        // Fullscreen must start inside the click; it is best effort — focus mode works without it.
+        if (canFullscreen && !document.fullscreenElement) fsRoot.requestFullscreen().catch(() => {});
+        setFocusMode(true);
+    });
+    focusExitBtn.addEventListener('click', () => setFocusMode(false));
+    // Leaving real fullscreen (browser UI / Esc) leaves focus mode too.
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement && focusOn) setFocusMode(false);
+    });
+
+    // Page taps: left/right thirds turn pages, the middle toggles the bars.
     canvasWrapper.addEventListener('click', (e) => {
         if (layoutBusy || !visualPages.length || !themeMenu.hidden) return;   // open menu: this tap only closes it
         const r = canvasWrapper.getBoundingClientRect();
         const x = (e.clientX - r.left) / r.width;
-        if (x < 0.3) prevPage();
-        else if (x > 0.7) nextPage();
-        else setFocusMode(!document.body.classList.contains('focus-mode'));
+        if (x < 0.3)      { prevPage(); if (focusOn) showExitBtn(); }
+        else if (x > 0.7) { nextPage(); if (focusOn) showExitBtn(); }
+        else setFocusMode(!focusOn);
     });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && themeMenu.hidden && document.body.classList.contains('focus-mode')) {
-            setFocusMode(false);
-        }
+        if (e.key === 'Escape' && themeMenu.hidden && focusOn) setFocusMode(false);
     });
     // Leaving the reader always restores the bars (the library has its own layout).
-    window.addEventListener('hashchange', () => document.body.classList.remove('focus-mode'));
+    window.addEventListener('hashchange', () => applyFocus(false));
+
+    // iPhone Safari opened from the browser (not from the Home Screen): explain
+    // "Add to Home Screen" once. Never on Android / desktop / standalone.
+    (function iosInstallHint() {
+        const ua = navigator.userAgent;
+        const iPhoneSafari = /iPhone|iPod/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+        if (!iPhoneSafari || navigator.standalone === true) return;
+        try {
+            if (localStorage.getItem('arie_ios_install_hint')) return;
+            localStorage.setItem('arie_ios_install_hint', '1');
+        } catch (e) { return; }
+        iosHint.hidden = false;
+        iosHintOk.addEventListener('click', () => { iosHint.hidden = true; });
+    })();
 
     // Progress bar click → % of the book by LOGICAL offset → containing page.
     progressContainer.addEventListener('click', (e) => {

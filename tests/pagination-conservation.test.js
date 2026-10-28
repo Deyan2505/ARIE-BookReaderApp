@@ -219,12 +219,24 @@ check('index.html: manifest link, iOS web-app tags, apple-touch-icon, icon', () 
     }
     assert.ok(fs.existsSync(path.join(root, 'public', 'icons', 'apple-touch-icon.png')));
 });
-check('fullscreen button is hidden by default (JS reveals it only where the API exists)', () => {
-    assert.ok(/id="fullscreen-btn"[^>]*\bhidden\b/.test(indexHtml), 'fullscreen button must start hidden');
-    assert.ok(/\.btn-tool\[hidden\]\s*\{\s*display:\s*none/.test(stylesCss), '.btn-tool[hidden] must hide it');
+check('ONE "Цял екран" button, in the reader header; none in the footer', () => {
+    assert.strictEqual((indexHtml.match(/id="focus-btn"/g) || []).length, 1, 'exactly one #focus-btn');
+    assert.ok(!indexHtml.includes('fullscreen-btn'), 'old footer #fullscreen-btn must be gone');
+    const header = indexHtml.slice(indexHtml.indexOf('<header>', indexHtml.indexOf('screen-reader')), indexHtml.indexOf('</header>', indexHtml.indexOf('screen-reader')));
+    assert.ok(header.includes('id="focus-btn"'), '#focus-btn must be inside the reader <header>');
+    const footer = indexHtml.slice(indexHtml.indexOf('reader-footer'));
+    assert.ok(!footer.includes('focus-btn'), '#focus-btn must not be in the footer');
+});
+check('focus mode: Fullscreen API feature-detected, exit button, one-time hints', () => {
     const js = fs.readFileSync(path.join(root, 'public', 'js', 'reader.js'), 'utf8');
     assert.ok(/document\.fullscreenEnabled/.test(js) && /typeof fsRoot\.requestFullscreen/.test(js),
-        'reader.js must feature-detect the Fullscreen API');
+        'reader.js must feature-detect the Fullscreen API (iPhone has none)');
+    for (const needle of ['id="focus-exit"', 'id="focus-hint"', 'id="ios-hint"', 'Сподели → Добави към началния екран',
+                          'Тапни в средата за менюто · вляво/вдясно за страници']) {
+        assert.ok(indexHtml.includes(needle), 'index.html lacks ' + needle);
+    }
+    for (const key of ['arie_focus_hint', 'arie_ios_install_hint']) assert.ok(js.includes(key), 'reader.js lacks ' + key);
+    assert.ok(/navigator\.standalone\s*===\s*true/.test(js), 'iOS banner must skip standalone mode');
 });
 check('netlify.toml: no-cache for /api/*, /favicon.ico served', () => {
     assert.ok(/\[\[headers\]\]\s*for\s*=\s*"\/api\/\*"\s*\[headers\.values\]\s*Cache-Control\s*=\s*"no-cache"/.test(netlifyToml),

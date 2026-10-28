@@ -139,6 +139,11 @@
             </div>
 
             <div class="header-actions">
+                <!-- One button for everyone: focus mode, plus real fullscreen where the browser has it -->
+                <button class="btn-tool btn-focus" id="focus-btn" type="button" aria-label="Цял екран" title="Цял екран">
+                    <i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
+                    <span class="btn-label">Цял екран</span>
+                </button>
                 <div class="theme-wrap">
                     <button class="btn-tool" id="theme-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" aria-label="Тема на четене" title="Тема на четене">Аа</button>
                     <div class="theme-menu" id="theme-menu" role="menu" aria-label="Тема на четене" hidden>
@@ -190,16 +195,24 @@
                         <button class="btn-tool" id="font-increase-btn" aria-label="Увеличи шрифта" title="Увеличи шрифта">
                             <i class="fa-solid fa-plus" aria-hidden="true"></i>
                         </button>
-                        <!-- shown by reader.js only when the browser supports the Fullscreen API -->
-                        <button class="btn-tool" id="fullscreen-btn" aria-label="Цял екран" title="Цял екран" hidden>
-                            <i class="fa-solid fa-expand" aria-hidden="true"></i>
-                        </button>
                     </div>
                 </div>
             </div>
 
         </div>
 
+    </div>
+
+    <!-- Focus mode: exit button, one-time hint -->
+    <button class="focus-exit" id="focus-exit" type="button" aria-label="Изход от цял екран" title="Изход">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+    <div class="focus-hint" id="focus-hint" role="status" aria-live="polite">Тапни в средата за менюто · вляво/вдясно за страници</div>
+
+    <!-- iPhone Safari, not opened from the Home Screen: shown once -->
+    <div class="ios-hint" id="ios-hint" role="status" hidden>
+        <span>За четене без лентите на браузъра: Сподели → Добави към началния екран</span>
+        <button type="button" id="ios-hint-ok">Разбрах</button>
     </div>
 
     <script src="/js/reader.js"></script>
