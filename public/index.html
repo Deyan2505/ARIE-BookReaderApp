@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARIE — Библиотека</title>
+    <meta name="theme-color" content="#16171b">
+    <!-- "Add to Home Screen" opens the site without browser bars -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="ARIE">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/css/styles.css">
     <script>
@@ -130,6 +139,11 @@
             </div>
 
             <div class="header-actions">
+                <!-- One button for everyone: focus mode, plus real fullscreen where the browser has it -->
+                <button class="btn-tool btn-focus" id="focus-btn" type="button" aria-label="Цял екран" title="Цял екран">
+                    <i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
+                    <span class="btn-label">Цял екран</span>
+                </button>
                 <div class="theme-wrap">
                     <button class="btn-tool" id="theme-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" aria-label="Тема на четене" title="Тема на четене">Аа</button>
                     <div class="theme-menu" id="theme-menu" role="menu" aria-label="Тема на четене" hidden>
@@ -181,15 +195,24 @@
                         <button class="btn-tool" id="font-increase-btn" aria-label="Увеличи шрифта" title="Увеличи шрифта">
                             <i class="fa-solid fa-plus" aria-hidden="true"></i>
                         </button>
-                        <button class="btn-tool" id="fullscreen-btn" aria-label="Цял екран" title="Цял екран">
-                            <i class="fa-solid fa-expand" aria-hidden="true"></i>
-                        </button>
                     </div>
                 </div>
             </div>
 
         </div>
 
+    </div>
+
+    <!-- Focus mode: exit button, one-time hint -->
+    <button class="focus-exit" id="focus-exit" type="button" aria-label="Изход от цял екран" title="Изход">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+    <div class="focus-hint" id="focus-hint" role="status" aria-live="polite">Тапни в средата за менюто · вляво/вдясно за страници</div>
+
+    <!-- iPhone Safari, not opened from the Home Screen: shown once -->
+    <div class="ios-hint" id="ios-hint" role="status" hidden>
+        <span>За четене без лентите на браузъра: Сподели → Добави към началния екран</span>
+        <button type="button" id="ios-hint-ok">Разбрах</button>
     </div>
 
     <script src="/js/reader.js"></script>
