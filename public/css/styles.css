@@ -537,6 +537,34 @@ body {
     transform: scale(0.95);
 }
 
+.btn-tool[hidden] {
+    display: none;
+}
+
+/* Focus mode: tap the middle of the page to hide/show the bars; the page then
+   takes the whole screen (reader.js repaginates around the kept text offset). */
+.focus-mode #screen-reader header,
+.focus-mode .reader-footer,
+.focus-mode .nav-arrow {
+    display: none;
+}
+
+.focus-mode #screen-reader .reader-container {
+    padding: 0;
+    gap: 0;
+}
+
+.focus-mode .canvas-wrapper {
+    max-width: 860px;   /* keeps a readable line length on wide screens */
+    max-height: none;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
 /* Security alert popup banner */
 .security-alert {
     position: fixed;

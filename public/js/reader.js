@@ -333,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Layout state
     let visualPages = [];      // text pages only (cover excluded)
+    let readAnchor = -1;       // text offset kept across relayouts; -1 = none
     let layoutMetrics = null;  // metrics the current visualPages were built with
     let layoutSig = '';
     let currentVisual = 0;     // 0 = cover, k >= 1 = visualPages[k - 1]
@@ -700,7 +701,13 @@ document.addEventListener('DOMContentLoaded', () => {
             resizeTimer = setTimeout(repaginateAroundOffset, 300);
             return;
         }
-        const keepOffset = currentVisual === 0 ? -1 : visualPages[currentVisual - 1].startOffset;
+        // Keep the text offset the reader was at. readAnchor remembers it across
+        // repeated relayouts (focus on/off, font +/-) until the reader turns a page,
+        // so a round trip never drifts to a neighbouring page.
+        const cur = currentVisual === 0 ? null : visualPages[currentVisual - 1];
+        let keepOffset = cur ? cur.startOffset : -1;
+        if (cur && readAnchor >= cur.startOffset && readAnchor < cur.endOffset) keepOffset = readAnchor;
+        readAnchor = keepOffset;
         const myGen = ++generation;
         if (!(await runLayout(myGen))) return;
         currentVisual = keepOffset < 0 ? 0 : findVisualPageByOffset(keepOffset) + 1;
@@ -1136,15 +1143,17 @@ document.addEventListener('DOMContentLoaded', () => {
         updateHud();
     }
 
-    // Redraw-only resize: repaginate ONLY when the layout signature changes.
-    window.addEventListener('resize', () => {
+    // Redraw-only viewport change: repaginate ONLY when the layout signature changes.
+    // Used by window resize and by focus mode (the canvas changes size).
+    function onViewportChange() {
         if (!screenReader.classList.contains('active') || !visualPages.length) return;
         const m = buildLayoutMetrics();
         if (layoutSignatureOf(m) === layoutSig) { renderCurrent(); return; }
         drawLoadingState('Преподреждане на страниците…');
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(repaginateAroundOffset, 250);
-    });
+    }
+    window.addEventListener('resize', onViewportChange);
 
     // ── NAVIGATION ────────────────────────────────────────────────────────────
     // Page flips are synchronous over the precomputed layout (no network, no
@@ -1155,6 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (idx < 0) { showToast('Начало на книгата.', 'info'); return; }
         if (idx > visualPages.length) { showToast('Последна страница на книгата.', 'info'); return; }
         currentVisual = idx;
+        readAnchor = -1;   // the reader moved on: the old anchor no longer applies
         renderCurrent();
         persistProgress();
     }
@@ -1194,16 +1204,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     window.addEventListener('hashchange', () => setThemeMenu(false));
 
-    // Fullscreen (the following resize event triggers repagination if needed)
-    fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                showToast('Грешка при цял екран: ' + err.message, 'error');
-            });
-        } else {
-            document.exitFullscreen();
+    // Fullscreen API: the button exists only where the browser supports it
+    // (Android Chrome, desktop). iPhone Safari has no Fullscreen API for pages,
+    // so there the button stays hidden and focus mode (below) is the way to go.
+    // The following resize event triggers repagination if needed.
+    const fsRoot = document.documentElement;
+    if (document.fullscreenEnabled && typeof fsRoot.requestFullscreen === 'function') {
+        fullscreenBtn.hidden = false;
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                fsRoot.requestFullscreen().catch(err => {
+                    showToast('Грешка при цял екран: ' + err.message, 'error');
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const icon = fullscreenBtn.querySelector('i');
+            const on = !!document.fullscreenElement;
+            icon.classList.toggle('fa-compress', on);
+            icon.classList.toggle('fa-expand', !on);
+            fullscreenBtn.setAttribute('aria-label', on ? 'Изход от цял екран' : 'Цял екран');
+        });
+    }
+
+    // Focus mode (works everywhere): the middle of the page toggles the bars,
+    // the left/right thirds turn pages. The page then changes size, so the layout
+    // is rebuilt around the kept text offset (see readAnchor).
+    function setFocusMode(on) {
+        if (layoutBusy || !visualPages.length) return;
+        document.body.classList.toggle('focus-mode', on);
+        setThemeMenu(false);
+        onViewportChange();
+    }
+    canvasWrapper.addEventListener('click', (e) => {
+        if (layoutBusy || !visualPages.length || !themeMenu.hidden) return;   // open menu: this tap only closes it
+        const r = canvasWrapper.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width;
+        if (x < 0.3) prevPage();
+        else if (x > 0.7) nextPage();
+        else setFocusMode(!document.body.classList.contains('focus-mode'));
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && themeMenu.hidden && document.body.classList.contains('focus-mode')) {
+            setFocusMode(false);
         }
     });
+    // Leaving the reader always restores the bars (the library has its own layout).
+    window.addEventListener('hashchange', () => document.body.classList.remove('focus-mode'));
 
     // Progress bar click → % of the book by LOGICAL offset → containing page.
     progressContainer.addEventListener('click', (e) => {

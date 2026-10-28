@@ -194,6 +194,44 @@ check('theme menu markup: three themes, no leftover theme-toggle-btn', () => {
     assert.ok(!indexHtml.includes('theme-toggle-btn'), 'old theme-toggle-btn still present');
 });
 
+// ── PWA / fullscreen / caching ─────────────────────────────────────────────
+console.log('== PWA & delivery ==');
+check('manifest.json: standalone, theme #16171b, icons exist with the declared size', () => {
+    const mf = JSON.parse(fs.readFileSync(path.join(root, 'public', 'manifest.json'), 'utf8'));
+    assert.strictEqual(mf.display, 'standalone');
+    assert.strictEqual(mf.theme_color, '#16171b');
+    assert.ok(mf.name && mf.start_url, 'name and start_url are required');
+    const sizes = new Set();
+    for (const ic of mf.icons) {
+        const f = path.join(root, 'public', ic.src);
+        assert.ok(fs.existsSync(f), 'icon missing: ' + ic.src);
+        const buf = fs.readFileSync(f);
+        assert.strictEqual(buf.toString('latin1', 1, 4), 'PNG', ic.src + ' is not a PNG');
+        const [w, h] = [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+        assert.strictEqual(`${w}x${h}`, ic.sizes, `${ic.src}: declared ${ic.sizes}, real ${w}x${h}`);
+        sizes.add(ic.sizes);
+    }
+    assert.ok(sizes.has('192x192') && sizes.has('512x512'), 'need 192 and 512 icons');
+});
+check('index.html: manifest link, iOS web-app tags, apple-touch-icon, icon', () => {
+    for (const needle of ['rel="manifest"', 'apple-mobile-web-app-capable', 'apple-touch-icon', 'rel="icon"', 'name="theme-color"']) {
+        assert.ok(indexHtml.includes(needle), 'index.html lacks ' + needle);
+    }
+    assert.ok(fs.existsSync(path.join(root, 'public', 'icons', 'apple-touch-icon.png')));
+});
+check('fullscreen button is hidden by default (JS reveals it only where the API exists)', () => {
+    assert.ok(/id="fullscreen-btn"[^>]*\bhidden\b/.test(indexHtml), 'fullscreen button must start hidden');
+    assert.ok(/\.btn-tool\[hidden\]\s*\{\s*display:\s*none/.test(stylesCss), '.btn-tool[hidden] must hide it');
+    const js = fs.readFileSync(path.join(root, 'public', 'js', 'reader.js'), 'utf8');
+    assert.ok(/document\.fullscreenEnabled/.test(js) && /typeof fsRoot\.requestFullscreen/.test(js),
+        'reader.js must feature-detect the Fullscreen API');
+});
+check('netlify.toml: no-cache for /api/*, /favicon.ico served', () => {
+    assert.ok(/\[\[headers\]\]\s*for\s*=\s*"\/api\/\*"\s*\[headers\.values\]\s*Cache-Control\s*=\s*"no-cache"/.test(netlifyToml),
+        'missing Cache-Control: no-cache header for /api/*');
+    assert.ok(/from\s*=\s*"\/favicon\.ico"/.test(netlifyToml), 'missing /favicon.ico rule');
+});
+
 // ── Legacy /page parity and v1 progress migration formula ─────────────────
 console.log('== Legacy parity: paginateText vs buildChunks ==');
 for (const { entry, text, chunks } of books) {

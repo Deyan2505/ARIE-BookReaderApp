@@ -5,6 +5,18 @@
 [functions]
   included_files = ["data/**", "uploads/1_Paradoksat-na-bolkata.txt", "uploads/1_Paradoksat-na-bolkata.json", "uploads/2_Paradoksat-na-maskata.txt", "uploads/Chovekat-presechna-tochka.txt"]
 
+# API answers must never be served from a cache (a stale /api/books was seen after a deploy)
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Browsers ask for /favicon.ico regardless of <link rel="icon">
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/icons/icon-192.png"
+  status = 200
+
 # Redirect API calls to the serverless function handler
 [[redirects]]
   from = "/api/*"
