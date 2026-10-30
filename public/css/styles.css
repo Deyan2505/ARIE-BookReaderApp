@@ -504,6 +504,20 @@ body {
     color: var(--text-primary);
 }
 
+.page-jump {
+    width: 4.2em;
+    padding: 2px 4px;
+    text-align: center;
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    -moz-appearance: textfield;
+}
+.page-jump::-webkit-outer-spin-button,
+.page-jump::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 .tool-buttons {
     display: flex;
     gap: 10px;

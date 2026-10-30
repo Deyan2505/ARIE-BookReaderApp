@@ -905,7 +905,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── HUD ──────────────────────────────────────────────────────────────────
     function updateHud() {
-        currentPageNumEl.textContent = currentVisual + 1;
+        currentPageNumEl.value = currentVisual + 1;
+        currentPageNumEl.max = visualPages.length + 1;
         totalPagesNumEl.textContent = visualPages.length + 1;
         // Progress fill formula: read-through fraction by logical offset —
         // cover fills 0%, a text page fills endOffset / totalChars.
@@ -1313,9 +1314,21 @@ document.addEventListener('DOMContentLoaded', () => {
         gotoVisual(findVisualPageByOffset(targetOff) + 1);
     });
 
+    // Jump to a typed page number (Enter / leaving the field); invalid input snaps back.
+    function jumpToTypedPage() {
+        const n = parseInt(currentPageNumEl.value, 10);
+        if (!layoutBusy && visualPages.length && n >= 1 && n <= visualPages.length + 1) gotoVisual(n - 1);
+        updateHud();
+    }
+    currentPageNumEl.addEventListener('change', jumpToTypedPage);
+    currentPageNumEl.addEventListener('focus', () => currentPageNumEl.select());
+    currentPageNumEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') currentPageNumEl.blur();
+    });
+
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-        if (screenReader.classList.contains('active')) {
+        if (screenReader.classList.contains('active') && e.target !== currentPageNumEl) {
             if (e.key === 'ArrowLeft')  prevPage();
             if (e.key === 'ArrowRight') nextPage();
         }
