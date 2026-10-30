@@ -908,7 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateHud() {
         currentPageNumEl.textContent = currentVisual + 1;
         pageJumpEl.max = visualPages.length + 1;
-        pageJumpEl.placeholder = (currentVisual + 1) + ' / ' + (visualPages.length + 1);
+        pageJumpEl.placeholder = 'Стр. ' + (currentVisual + 1);
         totalPagesNumEl.textContent = visualPages.length + 1;
         // Progress fill formula: read-through fraction by logical offset —
         // cover fills 0%, a text page fills endOffset / totalChars.
