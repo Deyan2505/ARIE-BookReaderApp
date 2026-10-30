@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevPageBtn       = document.getElementById('prev-page-btn');
     const nextPageBtn       = document.getElementById('next-page-btn');
     const currentPageNumEl  = document.getElementById('current-page-num');
+    const pageJumpEl        = document.getElementById('page-jump');
     const totalPagesNumEl   = document.getElementById('total-pages-num');
     const fontDecreaseBtn   = document.getElementById('font-decrease-btn');
     const fontIncreaseBtn   = document.getElementById('font-increase-btn');
@@ -905,8 +906,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── HUD ──────────────────────────────────────────────────────────────────
     function updateHud() {
-        currentPageNumEl.value = currentVisual + 1;
-        currentPageNumEl.max = visualPages.length + 1;
+        currentPageNumEl.textContent = currentVisual + 1;
+        pageJumpEl.max = visualPages.length + 1;
+        pageJumpEl.placeholder = (currentVisual + 1) + ' / ' + (visualPages.length + 1);
         totalPagesNumEl.textContent = visualPages.length + 1;
         // Progress fill formula: read-through fraction by logical offset —
         // cover fills 0%, a text page fills endOffset / totalChars.
@@ -1314,21 +1316,21 @@ document.addEventListener('DOMContentLoaded', () => {
         gotoVisual(findVisualPageByOffset(targetOff) + 1);
     });
 
-    // Jump to a typed page number (Enter / leaving the field); invalid input snaps back.
+    // Jump-to-page box above the progress bar: opens the typed page right away
+    // (short pause after typing, or Enter); out-of-range numbers are ignored.
+    let jumpTimer;
     function jumpToTypedPage() {
-        const n = parseInt(currentPageNumEl.value, 10);
-        if (!layoutBusy && visualPages.length && n >= 1 && n <= visualPages.length + 1) gotoVisual(n - 1);
-        updateHud();
+        clearTimeout(jumpTimer);
+        const n = parseInt(pageJumpEl.value, 10);
+        if (!layoutBusy && visualPages.length && n >= 1 && n <= visualPages.length + 1 && n - 1 !== currentVisual) gotoVisual(n - 1);
     }
-    currentPageNumEl.addEventListener('change', jumpToTypedPage);
-    currentPageNumEl.addEventListener('focus', () => currentPageNumEl.select());
-    currentPageNumEl.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') currentPageNumEl.blur();
-    });
+    pageJumpEl.addEventListener('input', () => { clearTimeout(jumpTimer); jumpTimer = setTimeout(jumpToTypedPage, 700); });
+    pageJumpEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { jumpToTypedPage(); pageJumpEl.blur(); } });
+    pageJumpEl.addEventListener('blur', () => { clearTimeout(jumpTimer); pageJumpEl.value = ''; });
 
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-        if (screenReader.classList.contains('active') && e.target !== currentPageNumEl) {
+        if (screenReader.classList.contains('active') && e.target !== pageJumpEl) {
             if (e.key === 'ArrowLeft')  prevPage();
             if (e.key === 'ArrowRight') nextPage();
         }
